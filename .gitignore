@@ -1,0 +1,4 @@
+*.deb
+wordlists/
+*.log
+.DS_Store
