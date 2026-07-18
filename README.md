@@ -1,9 +1,7 @@
 # SSH Brute-Force Detection with Splunk
 
 ## What this actually is
-This is a lab project where I set up a full SSH brute-force attack chain from scratch — recon with Nmap, brute-forcing with Metasploit — then caught it using Splunk. The whole point wasn't just "run some tools," it was to actually understand what a brute-force attack looks like from the log side, and build real threshold-based detection for it instead of just reading about it.
-
-Everything here happened in an isolated lab (two VMs, host-only network, no internet-facing anything). This is purely for learning — not something run against a real target.
+This is a lab project where I set up a full SSH brute-force attack chain from scratch — recon with Nmap, brute-forcing with Metasploit — then caught it using Splunk or Python(Splunk was used in this). The whole point wasn't just "run some tools," it was to actually understand what a brute-force attack looks like from the log side, and build real threshold-based detection for it.
 
 ## The Setup
 - **Attacker VM**: Kali Linux — running Nmap + Metasploit
