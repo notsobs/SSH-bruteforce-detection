@@ -1,0 +1,6 @@
+# Detects source IPs exceeding a failed-login threshold within a 1-minute window
+index=ssh_lab "Failed password"
+| rex field=_raw "Failed password for (invalid user )?(?<user>\S+) from (?<src_ip>\S+)"
+| bucket _time span=1m
+| stats count by src_ip, _time
+| where count > 5

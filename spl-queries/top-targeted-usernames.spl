@@ -1,0 +1,4 @@
+# Most frequently targeted usernames in failed login attempts
+index=ssh_lab "Failed password"
+| rex field=_raw "Failed password for (invalid user )?(?<user>\S+) from (?<src_ip>\S+)"
+| top limit=10 user

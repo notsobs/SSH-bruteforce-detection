@@ -1,0 +1,7 @@
+# Detects the strongest signal: repeated failures followed by a successful
+# login from the same source IP + username (actual credential compromise)
+index=ssh_lab ("Failed password" OR "Accepted password")
+| rex field=_raw "(Failed|Accepted) password for (invalid user )?(?<user>\S+) from (?<src_ip>\S+)"
+| eval result=if(match(_raw, "Accepted"), "success", "failure")
+| stats count(eval(result="failure")) as failures, count(eval(result="success")) as successes by src_ip, user
+| where failures > 5 AND successes > 0

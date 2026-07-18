@@ -1,0 +1,3 @@
+# Time-series view of failed attempts by source IP - used as a line chart panel
+index=ssh_lab "Failed password"
+| timechart span=1m count by src_ip
