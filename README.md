@@ -36,20 +36,16 @@ Everything here happened in an isolated lab (two VMs, host-only network, no inte
    ```
    Set a real password on the target user partway through my wordlist so the attack had to genuinely grind through a bunch of failures before hitting success — that's what gives you the realistic "failed, failed, failed... success" pattern in the logs instead of one clean hit.
 
-5. **Got blocked by SSH's own defenses (twice)** — see notes below, this ate up more time than the actual attack did.
+5. **Installed Splunk on the target VM**, ingested `auth.log` as a monitored source, and wrote SPL queries to detect the attack pattern (below).
 
-6. **Installed Splunk on the target VM**, ingested `auth.log` as a monitored source, and wrote SPL queries to detect the attack pattern (below).
+## Notes on getting blocked —
 
-## Notes on getting blocked — this part matters as much as the attack itself
-
-Trying to actually run the brute force, I ran straight into two of SSH's own built-in protections, back to back:
+Trying to actually run the brute force, make sure you take those into notice
 
 - **MaxAuthTries** — limits how many attempts are allowed per single connection before SSH drops it. I bumped this up in `sshd_config`, but it turned out this wasn't even the real blocker in my case.
 - **PerSourcePenalties** — this is the actual thing that got me. It's a newer OpenSSH feature (default on 9.8+, which ships with Ubuntu 24.04) that tracks failed attempts *per source IP* and starts penalizing/dropping connections from that IP once it decides there's been too many failures too fast. Way more aggressive than MaxAuthTries and not something I'd used before.
 
 **The fix**: instead of straight up disabling it, I used `PerSourcePenaltyExemptList <kali-ip>` to whitelist my attacker VM specifically. Felt like the more "correct" way to do it — same as how you'd whitelist your own red team infra on a real engagement instead of nuking a security control just to make your test work.
-
-**The dumb bug in the middle of all this**: my first attempt at the exempt-list fix straight up didn't work, and turned out the line I added had landed right under a block of commented-out example config and picked up a `#` in front of it — so it looked like it was set, but SSH was completely ignoring it. Caught it by comparing `sshd -T` (which shows the actual *running* config, not just the file) against a plain `grep` of the file itself — the mismatch between the two told me something was silently not applying.
 
 ## Detection Logic (SPL)
 Full queries live in [`spl-queries/`](spl-queries/) — here's the two that matter most.
@@ -74,19 +70,19 @@ index=ssh_lab ("Failed password" OR "Accepted password")
 ```
 This is the query I actually care about most. Raw failed-login counts are noisy — this one specifically flags a source IP that racked up failures *and then got in*. That's the difference between "someone's probing" and "someone's in."
 
-Also included: [`top-targeted-usernames.spl`](spl-queries/top-targeted-usernames.spl) and [`failed-logins-timeline.spl`](spl-queries/failed-logins-timeline.spl) — used for the dashboard's bar chart and timeline panels.
+Also included: [`top-targeted-usernames.spl`](spl-queries/top-targeted-usernames.spl) 
+```
+index=ssh_lab "Failed password"
+| rex field=_raw "Failed password for (invalid user )?(?<user>\S+) from (?<src_ip>\S+)"
+| top limit=10 user
+```
+and [`failed-logins-timeline.spl`](spl-queries/failed-logins-timeline.spl) — used for the dashboard's bar chart and timeline panels.
+```
+index=ssh_lab "Failed password"
+| timechart span=1m count by src_ip
 
-## Dashboard & Alerting
-![Dashboard overview](screenshots/dashboard-overview.png)
-
-![Alert fired](screenshots/alert-triggered.png)
-
-[add a line or two here on what each panel shows once screenshots are in]
-
+```
 ## Security Tips & Procedures — how to actually stop this attack
-
-Ranked from most effective / most recommended down to "nice to have but don't rely on it":
-
 1. **SSH key-based authentication, password auth disabled entirely** — the single biggest win, full stop. If there's no password to guess, brute force is dead on arrival regardless of wordlist size or how long an attacker's willing to grind.
 
 2. **Fail2ban** — watches auth logs and auto-bans an IP after N failures, for a set amount of time. Basically automates what my SPL queries do, except it actually blocks instead of just alerting. Easy to set up, big payoff.
@@ -116,6 +112,3 @@ Realistically: key-based auth + fail2ban (or even just UFW rate-limiting as a qu
 - Real-time alerting instead of a scheduled check
 - Correlate the Nmap recon burst and the brute force as one single incident, not two separate signals
 - GeoIP mapping on source IPs for the dashboard
-
-## Disclaimer
-Everything here happened in an isolated local lab — VirtualBox host-only network, VMs I built and own. Nothing here touched a real network or a system that wasn't mine.
